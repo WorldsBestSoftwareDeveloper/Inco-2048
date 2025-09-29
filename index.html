@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>World 2048 Cloud Theme</title>
+<style>
+  body {
+    background: linear-gradient(180deg, #80b8f2 0%, #5b8fcf 100%);
+    font-family: 'Arial', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    overflow: hidden;
+  }
+  .cloud-bg {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    overflow: hidden;
+    z-index: 0;
+  }
+  .drift-cloud {
+    position: absolute;
+    font-size: 3rem;
+    opacity: 0.2;
+    animation: drift 60s linear infinite;
+  }
+  @keyframes drift {
+    from { transform: translateX(-10%); }
+    to { transform: translateX(110%); }
+  }
+  .game-container {
+    background: rgba(255,255,255,0.08);
+    padding: 20px;
+    border-radius: 20px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    backdrop-filter: blur(10px);
+    text-align: center;
+    z-index: 1;
+    position: relative;
+  }
+  h1 {
+    color: #ffffff;
+    margin-bottom: 10px;
+    font-size: 3rem;
+  }
+  #score-container {
+    color: #ffffff;
+    margin-bottom: 10px;
+    font-size: 1.2rem;
+  }
+  #grid-container {
+    width: 400px;
+    height: 400px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 12px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 10px;
+    padding: 10px;
+  }
+  .cell {
+    background: rgba(255,255,255,0.12);
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.2);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 2rem;
+    font-weight: bold;
+    position: relative;
+  }
+  .tile {
+    width: 90%;
+    height: 90%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #003bb5;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #f5faff 65%, #c7ddf5 100%);
+    box-shadow: 0 0 12px rgba(0,120,255,0.45), 0 0 28px rgba(0,120,255,0.28);
+    animation: appear 0.15s ease-out;
+    position: relative;
+  }
+  .tile::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 8px 4px rgba(255,255,255,0.3);
+    pointer-events: none;
+  }
+  @keyframes appear {
+    0% {transform: scale(0.7); opacity: 0.5;}
+    100% {transform: scale(1); opacity: 1;}
+  }
+  .tile.merge {
+    animation: pop 0.28s ease-in-out;
+  }
+  @keyframes pop {
+    0% {transform: scale(1);}
+    50% {transform: scale(1.18);}
+    100% {transform: scale(1);}
+  }
+  .sparkle {
+    position: absolute;
+    font-size: 1rem;
+    color: rgba(255,255,255,0.8);
+    animation: sparkleFade 0.6s ease-out forwards;
+  }
+  @keyframes sparkleFade {
+    0% {opacity: 1; transform: scale(1);}
+    100% {opacity: 0; transform: scale(1.8);}
+  }
+  button {
+    background: #3a6fcf;
+    color: #ffffff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 1rem;
+    margin-top: 10px;
+  }
+  button:hover {
+    background: #4a7fde;
+  }
+  #undo-btn {
+    margin-left: 10px;
+  }
+</style>
+</head>
+<body>
+  <div class="cloud-bg">
+    <div class="drift-cloud" style="top:10%; left:-10%; animation-duration:70s;">☁️</div>
+    <div class="drift-cloud" style="top:30%; left:-20%; animation-duration:90s;">☁️</div>
+    <div class="drift-cloud" style="top:60%; left:-15%; animation-duration:80s;">☁️</div>
+  </div>
+  <div class="game-container">
+    <h1>Inco 2048 ☁️</h1>
+    <div id="score-container">
+      Score: <span id="score">0</span> | Best: <span id="best-score">0</span>
+    </div>
+    <div id="grid-container"></div>
+    <button id="new-game">New Game</button>
+    <button id="undo-btn">Undo</button>
+  </div>
+  <script>
+    const gridSize = 4;
+    let grid = [];
+    let score = 0;
+    let bestScore = parseInt(localStorage.getItem('bestScore')) || 0;
+    let previousGrid = null;
+    let previousScore = 0;
+
+    const gridContainer = document.getElementById('grid-container');
+    const scoreEl = document.getElementById('score');
+    const bestScoreEl = document.getElementById('best-score');
+    const newGameBtn = document.getElementById('new-game');
+    const undoBtn = document.getElementById('undo-btn');
+
+    bestScoreEl.textContent = bestScore;
+
+    function saveState() {
+      previousGrid = grid.map(row => [...row]);
+      previousScore = score;
+    }
+
+    function init() {
+      grid = Array.from({ length: gridSize }, () => Array(gridSize).fill(0));
+      score = 0;
+      scoreEl.textContent = score;
+      spawnTile();
+      spawnTile();
+      render();
+    }
+
+    function spawnTile() {
+      const emptyCells = [];
+      for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize; c++) {
+          if (grid[r][c] === 0) emptyCells.push({ r, c });
+        }
+      }
+      if (emptyCells.length > 0) {
+        const { r, c } = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+        grid[r][c] = Math.random() > 0.1 ? 2 : 4;
+      }
+    }
+
+    function addSparkle(tileElement) {
+      const sparkle = document.createElement('div');
+      sparkle.classList.add('sparkle');
+      sparkle.textContent = '✨';
+      sparkle.style.left = Math.random() * 60 + '%';
+      sparkle.style.top = Math.random() * 60 + '%';
+      tileElement.appendChild(sparkle);
+      setTimeout(() => sparkle.remove(), 600);
+    }
+
+    function render() {
+      gridContainer.innerHTML = '';
+      for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize; c++) {
+          const cell = document.createElement('div');
+          cell.classList.add('cell');
+          if (grid[r][c] !== 0) {
+            const tile = document.createElement('div');
+            tile.classList.add('tile');
+            tile.textContent = '☁️' + grid[r][c];
+            cell.appendChild(tile);
+          }
+          gridContainer.appendChild(cell);
+        }
+      }
+      scoreEl.textContent = score;
+      if (score > bestScore) {
+        bestScore = score;
+        localStorage.setItem('bestScore', bestScore);
+        bestScoreEl.textContent = bestScore;
+      }
+    }
+
+    function compress(row) {
+      const arr = row.filter(v => v !== 0);
+      while (arr.length < gridSize) arr.push(0);
+      return arr;
+    }
+
+    function mergeRow(row) {
+      for (let i = 0; i < gridSize - 1; i++) {
+        if (row[i] !== 0 && row[i] === row[i + 1]) {
+          row[i] *= 2;
+          score += row[i];
+          row[i + 1] = 0;
+        }
+      }
+      return row;
+    }
+
+    function moveLeft() {
+      saveState();
+      let moved = false;
+      for (let r = 0; r < gridSize; r++) {
+        const original = [...grid[r]];
+        let row = compress(grid[r]);
+        row = mergeRow(row);
+        row = compress(row);
+        grid[r] = row;
+        if (JSON.stringify(original) !== JSON.stringify(row)) moved = true;
+      }
+      if (moved) spawnTile();
+      render();
+      return moved;
+    }
+
+    function moveRight() {
+      saveState();
+      let moved = false;
+      for (let r = 0; r < gridSize; r++) {
+        const original = [...grid[r]];
+        let rev = [...grid[r]].reverse();
+        rev = compress(rev);
+        rev = mergeRow(rev);
+        rev = compress(rev);
+        grid[r] = rev.reverse();
+        if (JSON.stringify(original) !== JSON.stringify(grid[r])) moved = true;
+      }
+      if (moved) spawnTile();
+      render();
+      return moved;
+    }
+
+    function moveUp() {
+      saveState();
+      let moved = false;
+      for (let c = 0; c < gridSize; c++) {
+        const col = [];
+        for (let r = 0; r < gridSize; r++) col.push(grid[r][c]);
+        const original = [...col];
+        let newCol = compress(col);
+        newCol = mergeRow(newCol);
+        newCol = compress(newCol);
+        for (let r = 0; r < gridSize; r++) grid[r][c] = newCol[r];
+        if (JSON.stringify(original) !== JSON.stringify(newCol)) moved = true;
+      }
+      if (moved) spawnTile();
+      render();
+      return moved;
+    }
+
+    function moveDown() {
+      saveState();
+      let moved = false;
+      for (let c = 0; c < gridSize; c++) {
+        const col = [];
+        for (let r = 0; r < gridSize; r++) col.push(grid[r][c]);
+        const original = [...col];
+        let rev = [...col].reverse();
+        rev = compress(rev);
+        rev = mergeRow(rev);
+        rev = compress(rev);
+        rev = rev.reverse();
+        for (let r = 0; r < gridSize; r++) grid[r][c] = rev[r];
+        if (JSON.stringify(original) !== JSON.stringify(rev)) moved = true;
+      }
+      if (moved) spawnTile();
+      render();
+      return moved;
+    }
+
+    // key handling
+    window.addEventListener('keydown', e => {
+      let moved = false;
+      switch (e.key) {
+        case 'ArrowLeft': moved = moveLeft(); break;
+        case 'ArrowUp': moved = moveUp(); break;
+        case 'ArrowRight': moved = moveRight(); break;
+        case 'ArrowDown': moved = moveDown(); break;
+      }
+      if (moved) e.preventDefault();
+    });
+
+    // touch support
+    let touchStart = null;
+    window.addEventListener('touchstart', e => { if (e.touches.length === 1) touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY }; });
+    window.addEventListener('touchend', e => {
+      if (!touchStart) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - touchStart.x;
+      const dy = t.clientY - touchStart.y;
+      const absX = Math.abs(dx), absY = Math.abs(dy);
+      if (Math.max(absX, absY) < 18) { touchStart = null; return; }
+      if (absX > absY) { if (dx > 0) moveRight(); else moveLeft(); }
+      else { if (dy > 0) moveDown(); else moveUp(); }
+      touchStart = null;
+    });
+
+    undoBtn.addEventListener('click', () => {
+      if (previousGrid) {
+        grid = previousGrid.map(row => [...row]);
+        score = previousScore;
+        render();
+      }
+    });
+
+    newGameBtn.addEventListener('click', init);
+
+    init();
+  </script>
+</body>
+</html>
